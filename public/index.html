@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  <script>
+    const config = {
+      type: Phaser.AUTO,
+      width: 1280,
+      height: 720,
+      scene: {
+        preload: preload,
+        create: create,
+        update: update
+      }
+    };
+
+    const game = new Phaser.Game(config);
+    let socket;
+    let playerId;
+    let cursors;
+
+    function preload() {
+      this.load.image('player', 'assets/player.png');
+    }
+
+    function create() {
+      socket = io('http://localhost:3000');
+      cursors = this.input.keyboard.createCursorKeys();
+      
+      socket.on('connect', () => {
+        playerId = socket.id;
+        socket.emit('spawn');
+      });
+
+      socket.on('gameUpdate', (state) => {
+        // Обновление игровых объектов
+        Object.entries(state.players).forEach(([id, data]) => {
+          if(!this.children.getByName(id)) {
+            const player = this.add.sprite(data.x, data.y, 'player');
+            player.setName(id);
+          } else {
+            const player = this.children.getByName(id);
+            player.x = data.x;
+            player.y = data.y;
+          }
+        });
+      });
+
+      // Создание аномалий по клику
+      this.input.on('pointerdown', (pointer) => {
+        socket.emit('useAbility', {
+          type: 'gravity',
+          position: { x: pointer.x, y: pointer.y },
+          power: 500
+        });
+      });
+    }
+
+    function update() {
+      if(cursors.left.isDown) socket.emit('move', { x: -5, y: 0 });
+      if(cursors.right.isDown) socket.emit('move', { x: 5, y: 0 });
+    }
+  </script>
+</body>
+</html>
